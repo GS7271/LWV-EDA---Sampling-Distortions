@@ -1,0 +1,77 @@
+---
+title: "LWV_Sampling_Errors"
+author: "Oscar Padilla"
+date: "July 13, 2016"
+output: 
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache= TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+# LWV_Data.csv file was downloaded to local directory
+library(doBy)
+library(ggplot2)
+```
+
+# Exploratory Data Analysis - Voters Behavior
+
+## Load the data file
+
+```{r}
+setwd("/Users/GS7271/Documents/MSDS6306/Unit8/HW8")
+raw_data <- read.csv("LWV_Data.csv")
+str(raw_data)
+# Verify the number of individuals who received the flyer
+nrow(raw_data[!is.na(raw_data$flyer) & raw_data$flyer == 1, ])
+```
+
+## Analyze the population by segmenting in demographic groups ~ *Categories*
+
+```{r}
+raw_data_Category <- summaryBy(VOTED2014 ~ Voter.Category, data = raw_data, FUN = c(length, sum), var.names = c("Category", "Population"))
+raw_data_Category$proportion <- prop.table(raw_data_Category$VOTED2014.length)
+raw_data_Category$participation <- raw_data_Category$VOTED2014.sum / raw_data_Category$VOTED2014.length
+raw_data_Category
+```
+From the data below we can clearly see that Hispanic voting participation `r 100 * sum(raw_data_Category[raw_data_Category$Voter.Category == "Old Hispanic" | raw_data_Category$Voter.Category == "Young Hispanic", 3]) / sum(raw_data_Category[raw_data_Category$Voter.Category == "Old Hispanic" | raw_data_Category$Voter.Category == "Young Hispanic", 2])`% is much lower than their *Not Hispanic* counterparts.
+
+##Analyze the sample data by segmenting in the same demographic groups
+
+```{r}
+experiment <- raw_data[complete.cases(raw_data), ]
+experiment_Category <- summaryBy(VOTED2014 ~ Voter.Category, data = experiment, FUN = length, keep.names = TRUE, var.names = c("Category", "Population"))
+experiment_Category$proportion <- prop.table(experiment_Category$VOTED2014)
+experiment_Category
+```
+
+As opposed to the general population, where Old Not Hispanic represent more than half of the electorate, the sample data is almost uniformly segmented, i.e.  each demographic has an equal weight.
+
+## Comparison of Population Demographic Proportion vs. Sample Demo Proportions
+
+```{r}
+raw_v_experiment <- merge(raw_data_Category, experiment_Category, by = "Voter.Category")
+names(raw_v_experiment) <- c("Category", "Pop", "Voters", "Pop_prop", "Participation", "Exp", "Exp_prop")
+raw_v_experiment
+g <- ggplot(data = raw_v_experiment, aes(x = Category))
+g <- g + geom_bar(aes(y = Pop_prop), stat = "identity", fill = "green", position = "dodge")
+g <- g + geom_point(aes(y = Exp_prop), stat = "identity", color = "red")
+g <- g + ggtitle(expression(atop("Demographic Categories Representation"), atop("General Population vs. Experiment"), "")) + theme(legend.position = "top") + ylab("Proportion")
+g
+```
+
+## Analysis
+
+The chart above clearly indicates how Old and Young Hispanics are over represented in the sample data (red dots). As part of the overall population (green bars) these two groups only represent 13% and 7% respectively. However, in the sample data their representation is inflated to equate the other Not Hispanic groups (23% - 26%). In contrast, Not Hispanic groups (old and young) are under represented.
+By over representing Hispanics in the sample, we alter the behavior of the experiment because this group has half the voting participation of Not Hispanic.
+
+## Other *noise* factors
+
+### Eligibility
+
+Assuming the *Eligible* variable describes who can vote, it was found that `r nrow(raw_data[raw_data$Eligible.2008 == 0 & raw_data$Voted.Gen..Elec..07.2008 == 1, ])` people voted in 2008 despite being non-eligible (Eligible = 0). Same applies to 2012 election data, where the number soars to `r nrow(raw_data[raw_data$Eligible.2012 == 0 & raw_data$Voted.11.2012 == 1, ])` uneligible voters.
+
+### Presidential vs. Mid-Term Elections
+
+Overall voters participation during Presidential elections in 2008 and 2012 was `r 100*sum(raw_data$Voted.Gen..Elec..07.2008)/nrow(raw_data)`% and `r 100*sum(raw_data$Voted.11.2012)/nrow(raw_data)`%, respectively, which tends to be higher than `r 100*sum(raw_data$Voted.Gen..Elec..09.2010)/nrow(raw_data)`% and `r 100*sum(raw_data$VOTED2014)/nrow(raw_data)`% in 2010 and 2014, respectively, which were Mid-Term elections.
